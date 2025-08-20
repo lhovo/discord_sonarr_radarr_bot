@@ -119,3 +119,6 @@ pip install watchdog
 watchmedo auto-restart -d . -p "*.py" -- python bot.py
 ```
 
+## 📜 License
+
+This project is licensed under the [GNU General Public License v3.0](LICENSE).
