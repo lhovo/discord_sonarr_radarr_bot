@@ -105,18 +105,18 @@ http://your-bot:5000/webhook
 - !addseries <tvdb_id> → Add a new TV series to Sonarr.
 - !addmovie <tmdb_id> → Add a movie to Radarr.
 - !progress → Show all active downloads.
-- !status <tmdb_id> → Show detailed status of a movie or show.
+- !status <tvdb_id> → Show detailed status of a show.
 
 ## 📝 Development
 
 Run locally:
 ```bash
-python bot.py
+python discord_media.py
 ```
 To auto-reload during development:
 ```bash
 pip install watchdog
-watchmedo auto-restart -d . -p "*.py" -- python bot.py
+watchmedo auto-restart -d . -p "*.py" -- python discord_media.py
 ```
 
 ## 📜 License
