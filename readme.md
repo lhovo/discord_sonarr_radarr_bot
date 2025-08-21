@@ -39,36 +39,36 @@ pip install -r requirements.txt
 discord:
   token: "YOUR_DISCORD_BOT_TOKEN"
   prefix: "!"
+  # Only allow commands in these channels
+  # The first channel is used to post sonnar and radarr events
   restricted_channels:
-    - 123456789012345678   # Only allow commands in these channels, the first channel is used to post sonnar and radarr events
+    - 123456789012345678
 
 sonarr:
   url: "http://sonarr:8989"
   api_key: "YOUR_SONARR_API_KEY"
+  quality_profile_id: 6 # Default quality profile
   folders:
     kids: "/media/kids_tv"
     documentary: "/media/documentaries_tv"
     default: "/media/tv"
-  quality_profile_id: 6   # Default quality profile
 
 radarr:
   url: "http://radarr:7878"
   api_key: "YOUR_RADARR_API_KEY"
+  quality_profile_id: 6 # Default quality profile
   folders:
     kids: "/media/kids_movies"
     documentary: "/media/documentaries_movies"
     default: "/media/movies"
-  quality_profile_id: 6
 
 settings:
-  debounce_time: 5   # seconds for webhook debounce
-  notify_on_add: true
-  genres:
-    documentaries: true
-    children: true
+  # show grab messages from the radarr / sonarr webhook
+  # only if the show was recently added
+  recent_ttl_seconds: 600
+
 logging:
   level: INFO
-  file: "logs/bot.log"
 ```
 
 ## 🐳 Running with Docker
