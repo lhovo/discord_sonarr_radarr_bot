@@ -15,33 +15,30 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+
+# Discord Sonarr/Radarr Bot
+# -------------------------
+
+# This bot integrates with Sonarr and Radarr APIs, providing the following features:
+# - Lookup TV shows and movies by name
+# - Add TV shows and movies by ID
+# - Track and display download progress
+# - Expose a webhook endpoint for Radarr/Sonarr events
+# - Send event updates to Discord channels with batching and debounce
+
 import os
-import sys
 import time
-import json
 from functools import wraps
 import logging
 import asyncio
 from collections import deque
 from logging.handlers import RotatingFileHandler
 from typing import TypedDict, Mapping, Union, Any
-import yaml
 import requests
+import yaml
 from aiohttp import web
 import discord
 from discord.ext import commands
-
-"""
-Discord Sonarr/Radarr Bot
--------------------------
-
-This bot integrates with Sonarr and Radarr APIs, providing the following features:
-- Lookup TV shows and movies by name
-- Add TV shows and movies by ID
-- Track and display download progress
-- Expose a webhook endpoint for Radarr/Sonarr events
-- Send event updates to Discord channels with batching and debounce
-"""
 
 # Ensure a logs folder exists
 os.makedirs("/app/logs", exist_ok=True)
@@ -53,15 +50,12 @@ with open("config.yaml", "r", encoding="utf-8") as f:
 # Reset any existing handlers to avoid duplicate logs
 logging.getLogger().handlers.clear()
 
-LOG_LEVEL = CONFIG["logging"]["level"]
-log_level_names = logging.getLevelNamesMapping()
-
-log_level_error = False
-if LOG_LEVEL in log_level_names:
-    log_level = log_level_names[LOG_LEVEL]
+LOG_LEVEL_ERROR = False
+if CONFIG["logging"]["level"] in logging.getLevelNamesMapping():
+    LOG_LEVEL = logging.getLevelNamesMapping()[CONFIG["logging"]["level"]]
 else:
-    log_level_error = True
-    log_level = logging.INFO
+    LOG_LEVEL_ERROR = True
+    LOG_LEVEL = logging.INFO
 
 # Configure logging
 logging.basicConfig(
@@ -69,7 +63,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
         logging.FileHandler("/app/logs/bot.log"),
-        logging.StreamHandler(sys.stdout)  # also log to stdout
+        logging.StreamHandler()  # also log to stdout
     ]
 )
 
@@ -82,8 +76,8 @@ rotating_handler = RotatingFileHandler(
 )
 logging.getLogger().addHandler(rotating_handler)
 
-if log_level_error:
-    logger.error("Unkown log level %s, using INFO", LOG_LEVEL)
+if LOG_LEVEL_ERROR:
+    logger.error("Unknown log level %s, using INFO", CONFIG["logging"]["level"])
 
 DISCORD_TOKEN: str = CONFIG["discord"]["token"]
 RESTRICTED_CHANNELS: list[int] = CONFIG["discord"].get("restricted_channels", [])
@@ -609,7 +603,11 @@ async def fetch_radarr_queue(request_tmdb_id=None, page_size=500):
 
             if q.get("sizeleft", 0) > 0:  # still downloading
                 movie_id = q.get("movieId")
-                resp = requests.get(f"{RADARR_URL}/api/v3/movie/{movie_id}", headers=RADARR_HEADERS)
+                resp = requests.get(
+                    f"{RADARR_URL}/api/v3/movie/{movie_id}",
+                    headers=RADARR_HEADERS,
+                    timeout=API_TIMEOUT
+                )
                 resp.raise_for_status()
                 movie = resp.json()
                 title = f"{movie.get('title', 'Unknown Movie')} {movie.get('year', '????')}"
