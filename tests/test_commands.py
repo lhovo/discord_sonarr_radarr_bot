@@ -52,3 +52,17 @@ class TestTvCommandDispatch(unittest.IsolatedAsyncioTestCase):
             lookup_mock.assert_awaited_once_with(ctx, "the office")
             queue_mock.assert_not_awaited()
             show_mock.assert_not_awaited()
+
+    async def test_tv_search_command_valid_ref_dispatches_to_sonarr(self):
+        ctx = FakeCtx()
+        with patch.object(discord_media.sonarr, "search_episode", new=AsyncMock()) as search_mock:
+            await discord_media.tv_search_command.callback(ctx, 12345, "s2e8")
+            search_mock.assert_awaited_once_with(ctx, 12345, 2, 8)
+
+    async def test_tv_search_command_invalid_ref_sends_usage(self):
+        ctx = FakeCtx()
+        with patch.object(discord_media.sonarr, "search_episode", new=AsyncMock()) as search_mock:
+            await discord_media.tv_search_command.callback(ctx, 12345, "season2episode8")
+            self.assertEqual(len(ctx.messages), 1)
+            self.assertIn("!tvsearch", ctx.messages[0])
+            search_mock.assert_not_awaited()

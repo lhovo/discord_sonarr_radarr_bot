@@ -50,6 +50,63 @@ class SonarrClient(ArrClient):
     async def get_episode(self, episode_id: int) -> dict[str, Any] | WebRuntimeError:
         return await self.get(f"/api/v3/episode/{episode_id}")
 
+    async def search_episode(
+        self,
+        ctx: commands.Context,
+        tvdb_id: int,
+        season: int,
+        episode: int,
+    ) -> bool:
+        series = await self.get_series(tvdb_id)
+        if not series:
+            await ctx.send(f"❌ No show found with TVDB ID {tvdb_id}.")
+            return False
+
+        series_id = series.get("id")
+        if not isinstance(series_id, int):
+            await ctx.send("❌ Sonarr returned invalid series data.")
+            return False
+
+        episodes = await self.get_episodes(series_id)
+        if isinstance(episodes, WebRuntimeError):
+            await ctx.send(f"❌ Failed to load episodes: {episodes.message}")
+            return False
+
+        ep_match = next(
+            (
+                ep
+                for ep in episodes
+                if int(ep.get("seasonNumber", -1)) == season
+                and int(ep.get("episodeNumber", -1)) == episode
+            ),
+            None,
+        )
+        if not ep_match:
+            await ctx.send(
+                f"❌ Could not find S{season:02}E{episode:02} for **{series.get('title', 'Unknown')}**."
+            )
+            return False
+
+        episode_id = ep_match.get("id")
+        if not isinstance(episode_id, int):
+            await ctx.send("❌ Sonarr returned invalid episode data.")
+            return False
+
+        command_resp = await self.post(
+            "/api/v3/command",
+            json_body={"name": "EpisodeSearch", "episodeIds": [episode_id]},
+        )
+        if isinstance(command_resp, WebRuntimeError):
+            await ctx.send(f"❌ Failed to trigger episode search: {command_resp.message}")
+            return False
+
+        ep_title = ep_match.get("title", "Untitled")
+        await ctx.send(
+            f"✅ Triggered search for **{series['title']}** "
+            f"S{season:02}E{episode:02} **{ep_title}**."
+        )
+        return True
+
     async def tv_add(
         self,
         ctx: commands.Context,

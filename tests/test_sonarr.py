@@ -53,3 +53,49 @@ class TestSonarrTvShow(unittest.IsolatedAsyncioTestCase):
         self.assertIn("My Show", msg)
         self.assertIn("Season 1: 1/2 episodes downloaded", msg)
         self.assertIn("S01E02 Next Episode (75.0%)", msg)
+
+
+class SpyEpisodeSearchSonarr(SonarrClient):
+    def __init__(self):
+        super().__init__({}, "sonarr")
+        self.post_calls: list[tuple[str, dict[str, Any]]] = []
+
+    async def get_series(self, tvdb_id: int) -> dict[str, Any] | None:
+        return {"id": 200, "title": "Search Show", "tvdbId": tvdb_id}
+
+    async def get_episodes(self, series_id: int) -> list[dict[str, Any]] | WebRuntimeError:
+        return [
+            {"id": 701, "seasonNumber": 1, "episodeNumber": 1, "title": "Pilot"},
+            {"id": 702, "seasonNumber": 1, "episodeNumber": 2, "title": "Second"},
+        ]
+
+    async def post(self, path: str, *, json_body: Any) -> Any | WebRuntimeError:
+        self.post_calls.append((path, json_body))
+        return {"name": "EpisodeSearch"}
+
+
+class TestSonarrEpisodeSearch(unittest.IsolatedAsyncioTestCase):
+    async def test_search_episode_triggers_sonarr_command(self):
+        client = SpyEpisodeSearchSonarr()
+        ctx = FakeCtx()
+
+        result = await client.search_episode(ctx, 12345, 1, 2)
+
+        self.assertTrue(result)
+        self.assertEqual(
+            client.post_calls,
+            [("/api/v3/command", {"name": "EpisodeSearch", "episodeIds": [702]})],
+        )
+        self.assertEqual(len(ctx.messages), 1)
+        self.assertIn("Triggered search", ctx.messages[0])
+
+    async def test_search_episode_not_found_returns_false(self):
+        client = SpyEpisodeSearchSonarr()
+        ctx = FakeCtx()
+
+        result = await client.search_episode(ctx, 12345, 9, 9)
+
+        self.assertFalse(result)
+        self.assertEqual(client.post_calls, [])
+        self.assertEqual(len(ctx.messages), 1)
+        self.assertIn("Could not find", ctx.messages[0])

@@ -35,6 +35,7 @@ logging:
 
 import asyncio
 import logging
+import re
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
@@ -190,6 +191,22 @@ async def tv_command(ctx: commands.Context, *, arg: str | None = None) -> None:
 async def tv_add_command(ctx: commands.Context, tvdb_id: int) -> None:
     if await sonarr.tv_add(ctx, tvdb_id):
         web_hook_server.mark_recently_added("tv", tvdb_id)
+
+
+@bot.command(
+    name="tvsearch",
+    help="!tvsearch <tvdbId> s<season>e<episode>\nTrigger automatic Sonarr search for one episode.",
+)
+@_restrict_channels()
+async def tv_search_command(ctx: commands.Context, tvdb_id: int, episode_ref: str) -> None:
+    match = re.fullmatch(r"s(\d+)e(\d+)", episode_ref.strip().lower())
+    if not match:
+        await ctx.send("Format: `!tvsearch <tvdbId> s<season>e<episode>` (example: `!tvsearch 12345 s1e2`)")
+        return
+
+    season = int(match.group(1))
+    episode = int(match.group(2))
+    await sonarr.search_episode(ctx, tvdb_id, season, episode)
 
 
 @bot.command(name="movie")
