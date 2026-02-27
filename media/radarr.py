@@ -102,10 +102,6 @@ class RadarrClient(ArrClient):
         await self._send_embeds_in_batches(ctx, download_embeds)
 
     async def movie_lookup(self, ctx: commands.Context, query: str):
-        """
-        Arguments:
-        query (str): Movie name to find
-        """
         results = await self.lookup(query)
         if isinstance(results, WebRuntimeError):
             self.log.error("Radarr search failed: %s", results.message)
@@ -116,27 +112,34 @@ class RadarrClient(ArrClient):
             await ctx.send(f"No movies found for `{query}`.")
             return
 
-        header = Embed(title=f"Search results for: {query}", color=0x3498DB)
-        await ctx.send(embed=header)
         search_embeds: list[Embed] = []
+        results.sort(key=lambda r: r.get("year") or 0, reverse=True)
+        for movie in results[:20]:
+            title = movie.get("title", "Unknown Title")
+            year = movie.get("year", "?")
+            tmdb_id = movie.get("tmdbId", "-")
+            status = movie.get("status", "-")
+            overview = movie.get("overview", "-")
+            title_slug = movie.get("titleSlug", "-")
+            genres = ", ".join(movie.get("genres", [])) or "N/A"
 
-        for l_movie in results[:20]:  # limit to first 20
-            title = l_movie.get("title", "Unknown Title")
-            year = l_movie.get("year", "N/A")
-            tmdb_id = l_movie.get("tmdbId", "N/A")
-            genres = ", ".join(l_movie.get("genres", [])) or "N/A"
-            tmdb_link = (
-                f"https://www.themoviedb.org/movie/{tmdb_id}" if tmdb_id != "N/A" else "N/A"
+            emb = Embed(
+                title=f"{title} ({year})",
+                description=overview[:1000],
+                color=0x9B59B6,
             )
-
-            embed = Embed()
-            embed.add_field(
-                name=f"{title} ({year})",
-                value=f"🔗[TMDB]({tmdb_link})\nID: `{tmdb_id}`\nGenres: {genres}",
-                inline=False,
-            )
-            if l_movie.get("remotePoster"):
-                embed.set_thumbnail(url=l_movie.get("remotePoster"))
-            search_embeds.append(embed)
+            emb.add_field(name="TMDB", value=f"`{str(tmdb_id)}`", inline=False)
+            emb.add_field(name="Status", value=str(status))
+            emb.add_field(name="Genres", value=genres, inline=False)
+            emb.add_field(name="Title Slug", value=str(title_slug), inline=False)
+            if tmdb_id != "-":
+                emb.add_field(
+                    name="TMDB Link",
+                    value=f"https://www.themoviedb.org/movie/{tmdb_id}",
+                    inline=False,
+                )
+            if movie.get("remotePoster"):
+                emb.set_thumbnail(url=movie.get("remotePoster"))
+            search_embeds.append(emb)
 
         await self._send_embeds_in_batches(ctx, search_embeds)

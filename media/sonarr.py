@@ -134,7 +134,7 @@ class SonarrClient(ArrClient):
             return
 
         search_embeds: list[Embed] = []
-        results.sort(key=lambda r: r.get("year") or 0)
+        results.sort(key=lambda r: r.get("year") or 0, reverse=True)
         for r in results[:20]:
             title = r.get("title", "Untitled")
             year = r.get("year", "?")
@@ -148,7 +148,7 @@ class SonarrClient(ArrClient):
                 description=overview[:1000],
                 color=0x9B59B6,
             )
-            emb.add_field(name="TVDB", value=str(tvdbid))
+            emb.add_field(name="TVDB", value=f"`{str(tvdbid)}`", inline=False)
             emb.add_field(name="Status", value=str(status))
             emb.add_field(name="Title Slug", value=title_slug, inline=False)
 
