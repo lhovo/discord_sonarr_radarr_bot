@@ -1,41 +1,23 @@
-# 🎬 Discord Media Bot
+# Discord Media Bot
 
-A Discord bot that integrates with **Sonarr** and **Radarr** to search, add, and track the progress of movies and TV shows.  
-The bot supports notifications, downloading status, custom commands, and configurable filters for genres like **documentaries** or **children’s shows**.
+A Discord bot that integrates with Sonarr and Radarr to search, add, and track movie/TV downloads, plus post webhook updates to Discord.
 
----
+## Requirements
 
-## 🚀 Features
+- Python 3.12+
+- A `config.yaml` file in the project root
+- Sonarr and Radarr API access
+- Discord bot token with message content intent enabled
 
-- Search for movies and TV shows via **TMDb**.
-- Add series or movies directly to **Sonarr** or **Radarr**.
-- Track active downloads and show progress (episodes + movies).
-- Webhook integration for notifications when downloads complete.
-- Configurable **root folders**, **quality profiles**, and **restricted channels**.
-- Customizable help command with aliases.
-- Runs easily in **Docker**.
-
----
-
-## 📦 Requirements
-
-- Python **3.9+**
-- Dependencies (see `requirements.txt`):
-  - `discord.py`
-  - `PyYAML`
-  - `requests`
-  - `aiohttp`
-  - `flask` (for webhook support)
-  - `asyncio`
-
-Or install with:
+Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## ⚙️ Example config.yml
-```yml
+## Config Example (`config.yaml`)
+
+```yaml
 discord:
   token: "YOUR_DISCORD_BOT_TOKEN"
   prefix: "!"
@@ -48,77 +30,81 @@ sonarr:
   url: "http://sonarr:8989"
   api_key: "YOUR_SONARR_API_KEY"
   quality_profile_id: 6 # Default quality profile
+  default_folder: "/media/kids_tv"
   folders:
-    kids: "/media/kids_tv"
-    documentary: "/media/documentaries_tv"
-    default: "/media/tv"
+    - keywords: ["kids", "children"]
+      folder: "/media/kids_tv"
+    - keywords: ["documentary"]
+      folder: "/media/documentaries_tv"
 
 radarr:
   url: "http://radarr:7878"
   api_key: "YOUR_RADARR_API_KEY"
   quality_profile_id: 6 # Default quality profile
+  default_folder: "/media/movies"
   folders:
-    kids: "/media/kids_movies"
-    documentary: "/media/documentaries_movies"
-    default: "/media/movies"
+    - keywords: ["kids", "children"]
+      folder: "/media/kids_movies"
+    - keywords: ["documentary"]
+      folder: "/media/documentaries_movies"
 
-settings:
-  # show grab messages from the radarr / sonarr webhook
-  # only if the show was recently added
+webhook:
+  host: "0.0.0.0"
+  port: 5000
+  secret: ""
   recent_ttl_seconds: 600
 
 logging:
-  level: INFO
+  level: "INFO"
+  file: "/app/logs/bot.log"
 ```
 
-## 🐳 Running with Docker
+## Commands
 
-Build the image:
-```bash
-docker build -t discord-media-bot .
-```
+- `!tv` - Show active Sonarr downloads
+- `!tv <query>` - Search Sonarr series
+- `!tv <tvdbId>` - Show per-season status for a series
+- `!tvadd <tvdbId>` - Add series to Sonarr
+- `!movie` - Show active Radarr downloads
+- `!movie <query>` - Search Radarr movies
+- `!movieadd <tmdbId>` - Add movie to Radarr
 
-Run the container:
-```bash
-docker run -d \
-  --name discord-bot \
-  -v $(pwd)/config.yaml:/app/config.yaml:ro \
-  -v $(pwd)/logs:/app/logs:rw \
-  --restart unless-stopped \
-  -p 5000:5000 \
-  discord-media-bot
-```
+## Run Locally
 
-If Sonarr and Radarr are in the same Docker network, you can reference them by container name (e.g. http://sonarr:8989).
-
-## 🔔 Webhook Setup
-- In Sonarr and Radarr, configure a Webhook notification pointing to your bot container:
-```bash
-http://your-bot:5000/webhook
-```
-
-- Events (grabbed, downloaded, failed) will be sent to the bot.
-- The bot will debounce duplicate events to avoid spam and respect rate limits.
-
-## 📖 Example Commands
-- !find the matrix → Search for “The Matrix”.
-- !addseries <tvdb_id> → Add a new TV series to Sonarr.
-- !addmovie <tmdb_id> → Add a movie to Radarr.
-- !progress → Show all active downloads.
-- !status <tvdb_id> → Show detailed status of a show.
-
-## 📝 Development
-
-Run locally:
 ```bash
 python discord_media.py
 ```
-To auto-reload during development:
+
+## Docker Compose
+
+Use the included `docker_compose.yml`:
+
 ```bash
-pip install watchdog
-watchmedo auto-restart -d . -p "*.py" -- python discord_media.py
+docker compose up -d --build
 ```
 
-## 📜 License
+Stop:
 
-This project is licensed under the [GNU General Public License v3.0](LICENSE).
+```bash
+docker compose down
+```
+
+Notes:
+
+- Container runs as non-root user `1000:1000`.
+- Project code is mounted read-only; `./logs` is mounted read-write.
+- Healthcheck verifies the configured webhook port is reachable.
+
+## Webhook URL
+
+Set Sonarr/Radarr webhook to:
+
+```text
+http://<bot-host>:5000/webhook
+```
+
+If you change `webhook.port` in `config.yaml`, update published ports and webhook URL accordingly.
+
+## License
+
+GNU General Public License v3.0. See `LICENSE`.
