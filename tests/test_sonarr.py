@@ -24,8 +24,8 @@ class SpySonarrClient(SonarrClient):
     async def get_episodes(self, series_id: int) -> list[dict[str, Any]] | WebRuntimeError:
         self.get_episodes_called = True
         return [
-            {"seasonNumber": 1, "episodeNumber": 1, "hasFile": True},
-            {"seasonNumber": 1, "episodeNumber": 2, "hasFile": False},
+            {"seasonNumber": 1, "episodeNumber": 1, "hasFile": True, "title": "Pilot"},
+            {"seasonNumber": 1, "episodeNumber": 2, "hasFile": False, "title": "Next Episode"},
         ]
 
     async def queue(self, page_size: int = 500) -> list[dict[str, Any]] | WebRuntimeError:
@@ -41,7 +41,7 @@ class SpySonarrClient(SonarrClient):
 
 
 class TestSonarrTvShow(unittest.IsolatedAsyncioTestCase):
-    async def test_tv_show_uses_get_episodes_and_sends_summary(self):
+    async def test_tv_show_lists_episodes_per_line(self):
         client = SpySonarrClient()
         ctx = FakeCtx()
 
@@ -51,7 +51,9 @@ class TestSonarrTvShow(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(ctx.messages), 1)
         msg = ctx.messages[0]
         self.assertIn("My Show", msg)
-        self.assertIn("Season 1: 1/2 episodes downloaded", msg)
+        self.assertIn("Season 1", msg)
+        self.assertIn("S01E01 Pilot - Downloaded", msg)
+        self.assertIn("S01E02 Next Episode - Missing", msg)
         self.assertIn("S01E02 Next Episode (75.0%)", msg)
 
 

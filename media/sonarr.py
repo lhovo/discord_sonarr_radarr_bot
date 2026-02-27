@@ -1,4 +1,4 @@
-from typing import Any, TypedDict
+from typing import Any
 
 from discord import Embed
 from discord.ext import commands
@@ -192,34 +192,28 @@ class SonarrClient(ArrClient):
 
         search_embeds: list[Embed] = []
         results.sort(key=lambda r: r.get("year") or 0, reverse=True)
-        for r in results[:20]:
-            title = r.get("title", "Untitled")
-            year = r.get("year", "?")
-            tvdbid = r.get("tvdbId", "-")
-            status = r.get("status", "-")
-            overview = r.get("overview", "-")
-            title_slug = r.get("titleSlug", "-")
+        for result in results[:20]:
+            title = result.get("title", "Untitled")
+            year = result.get("year", "?")
+            tvdb_id = result.get("tvdbId", "-")
+            status = result.get("status", "-")
+            overview = result.get("overview", "-")
+            title_slug = result.get("titleSlug", "-")
 
             emb = Embed(
                 title=f"{title} ({year})",
                 description=overview[:1000],
                 color=0x9B59B6,
             )
-            emb.add_field(name="TVDB", value=f"`{str(tvdbid)}`", inline=False)
+            emb.add_field(name="TVDB", value=f"`{str(tvdb_id)}`", inline=False)
             emb.add_field(name="Status", value=str(status))
             emb.add_field(name="Title Slug", value=title_slug, inline=False)
-
-            if r.get("remotePoster"):
-                emb.set_thumbnail(url=r.get("remotePoster"))
+            if result.get("remotePoster"):
+                emb.set_thumbnail(url=result.get("remotePoster"))
             search_embeds.append(emb)
         await self._send_embeds_in_batches(ctx, search_embeds)
 
     async def tv_show(self, ctx: commands.Context, tvdb_id: int):
-        class SeasonData(TypedDict):
-            total: int
-            downloaded: int
-            eps: list[dict[str, Any]]
-
         series = await self.get_series(tvdb_id)
         if not series:
             await ctx.send(f"❌ No show found with TVDB ID {tvdb_id}.")
@@ -237,24 +231,26 @@ class SonarrClient(ArrClient):
 
         queue_items = await self.queue()
 
-        seasons: dict[int, SeasonData] = {}
-        for ep in episodes:
+        msg_lines = [f"**{series['title']}**"]
+        sorted_eps = sorted(
+            episodes,
+            key=lambda ep: (
+                int(ep.get("seasonNumber", 0)),
+                int(ep.get("episodeNumber", 0)),
+            ),
+        )
+        current_season: int | None = None
+        for ep in sorted_eps:
             season = int(ep.get("seasonNumber", 0))
-            if season not in seasons:
-                seasons[season] = {"total": 0, "downloaded": 0, "eps": []}
-            seasons[season]["total"] += 1
-            if ep.get("hasFile"):
-                seasons[season]["downloaded"] += 1
-            seasons[season]["eps"].append(ep)
-
-        msg_lines = [f"📺 **{series['title']}**"]
-
-        for season, stats in sorted(seasons.items()):
-            if season == 0 and stats["downloaded"] == 0:
-                continue
-            msg_lines.append(
-                f"Season {season}: {stats['downloaded']}/{stats['total']} episodes downloaded"
-            )
+            ep_num = int(ep.get("episodeNumber", 0))
+            title = ep.get("title", "Untitled")
+            downloaded = bool(ep.get("hasFile"))
+            if season != current_season:
+                msg_lines.append("")
+                msg_lines.append(f"Season {season}")
+                current_season = season
+            status = "Downloaded" if downloaded else "Missing"
+            msg_lines.append(f"S{season:02}E{ep_num:02} {title} - {status}")
 
         if isinstance(queue_items, WebRuntimeError):
             msg_lines.append(f"⚠️ Warning: failed to fetch Sonarr queue: {queue_items.message}")
@@ -284,4 +280,16 @@ class SonarrClient(ArrClient):
                 msg_lines.append("📥 Currently Downloading:")
                 msg_lines.extend(downloading)
 
-        await ctx.send("\n".join(msg_lines))
+        chunk: list[str] = []
+        chunk_len = 0
+        for line in msg_lines:
+            line_len = len(line) + (1 if chunk else 0)
+            if chunk and chunk_len + line_len > 1900:
+                await ctx.send("\n".join(chunk))
+                chunk = [line]
+                chunk_len = len(line)
+            else:
+                chunk.append(line)
+                chunk_len += line_len
+        if chunk:
+            await ctx.send("\n".join(chunk))
