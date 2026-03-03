@@ -97,7 +97,7 @@ RESTRICTED_CHANNELS: list[int] = list(discord_cfg.get("restricted_channels") or 
 
 intents = discord.Intents.default()
 intents.message_content = True
-bot = commands.Bot(command_prefix=DISCORD_PREFIX, intents=intents)
+bot = commands.Bot(command_prefix=DISCORD_PREFIX, intents=intents, help_command=None)
 
 sonarr_cfg: dict[str, Any] = CONFIG.get("sonarr", {})
 radarr_cfg: dict[str, Any] = CONFIG.get("radarr", {})
@@ -170,9 +170,67 @@ def _restrict_channels():
     return commands.check(predicate)
 
 
+@bot.command(name="help", help="!help - Show available bot commands.")
+@_restrict_channels()
+async def help_command(ctx: commands.Context) -> None:
+    def usage_lines(command_prefix: str) -> list[str]:
+        lines: list[str] = []
+        for cmd in sorted(bot.commands, key=lambda c: c.name):
+            if not cmd.name.startswith(command_prefix):
+                continue
+            help_text = (cmd.help or "").strip()
+            if not help_text:
+                continue
+            first_line = help_text.splitlines()[0]
+            if first_line.startswith("!"):
+                first_line = f"{ctx.clean_prefix}{first_line[1:]}"
+            lines.append(first_line)
+        return lines
+
+    def usage_lines_other(excluded_prefixes: tuple[str, ...]) -> list[str]:
+        lines: list[str] = []
+        for cmd in sorted(bot.commands, key=lambda c: c.name):
+            if cmd.name.startswith(excluded_prefixes):
+                continue
+            help_text = (cmd.help or "").strip()
+            if not help_text:
+                continue
+            first_line = help_text.splitlines()[0]
+            if first_line.startswith("!"):
+                first_line = f"{ctx.clean_prefix}{first_line[1:]}"
+            lines.append(first_line)
+        return lines
+
+    emb = discord.Embed(
+        title="Discord Media Bot Commands",
+        description="Use these commands to search/add media and check download status.",
+        color=0x3498DB,
+    )
+    other_lines = usage_lines_other(("tv", "movie"))
+    emb.add_field(
+        name="",
+        value="\n".join(line for line in other_lines if line) or "No other commands configured.",
+        inline=False,
+    )
+    tv_lines = usage_lines("tv")
+    emb.add_field(
+        name="TV (Sonarr)",
+        value="\n".join(line for line in tv_lines if line) or "No TV commands configured.",
+        inline=False,
+    )
+    movie_lines = usage_lines("movie")
+    emb.add_field(
+        name="Movies (Radarr)",
+        value="\n".join(line for line in movie_lines if line) or "No movie commands configured.",
+        inline=False,
+    )
+    emb.set_footer(text=f"Prefix: {DISCORD_PREFIX}")
+    await ctx.send(embed=emb)
+
+
 @bot.command(
     name="tv",
-    help="!tv [search query|tvdbId] [--N|--limit N]\nSearch defaults to 5 results; set N from 1 to 20.",
+    help="!tv [search query|tvdbId] [--N|--limit N] - Show TV downloads, search Sonarr, or show one series by TVDB ID.",
 )
 @_restrict_channels()
 async def tv_command(ctx: commands.Context, *, arg: str | None = None) -> None:
@@ -216,7 +274,7 @@ async def tv_command(ctx: commands.Context, *, arg: str | None = None) -> None:
         await sonarr.tv_lookup(ctx, query, limit=search_limit)
 
 
-@bot.command(name="tvadd", help="!tvadd <tvdbId>\nAdd a TV show using TVDB ID")
+@bot.command(name="tvadd", help="!tvadd <tvdbId> - Add a TV show using TVDB ID.")
 @_restrict_channels()
 async def tv_add_command(ctx: commands.Context, tvdb_id: int) -> None:
     if await sonarr.tv_add(ctx, tvdb_id):
@@ -225,7 +283,7 @@ async def tv_add_command(ctx: commands.Context, tvdb_id: int) -> None:
 
 @bot.command(
     name="tvsearch",
-    help="!tvsearch <tvdbId> s<season>e<episode>\nTrigger automatic Sonarr search for one episode.",
+    help="!tvsearch <tvdbId> s<season>e<episode> - Trigger Sonarr search for one episode.",
 )
 @_restrict_channels()
 async def tv_search_command(ctx: commands.Context, tvdb_id: int, episode_ref: str) -> None:
@@ -239,7 +297,10 @@ async def tv_search_command(ctx: commands.Context, tvdb_id: int, episode_ref: st
     await sonarr.search_episode(ctx, tvdb_id, season, episode)
 
 
-@bot.command(name="movie")
+@bot.command(
+    name="movie",
+    help="!movie [query] - Show active Radarr downloads or search by movie title.",
+)
 @_restrict_channels()
 async def movie_command(ctx: commands.Context, *, query: str | None = None) -> None:
     """Search for movies in Radarr: `!movie <query>`.
@@ -253,7 +314,7 @@ async def movie_command(ctx: commands.Context, *, query: str | None = None) -> N
         await radarr.movie_lookup(ctx, query)
 
 
-@bot.command(name="movieadd")
+@bot.command(name="movieadd", help="!movieadd <tmdbId> - Add a movie by TMDB ID.")
 @_restrict_channels()
 async def movie_add_command(ctx: commands.Context, tmdb_id: int) -> None:
     if await radarr.movie_add(ctx, tmdb_id):

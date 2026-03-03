@@ -10,13 +10,34 @@ import discord_media
 class FakeCtx:
     def __init__(self):
         self.channel = type("Channel", (), {"id": 1})()
+        self.clean_prefix = "!"
         self.messages: list[str] = []
+        self.embeds = []
 
-    async def send(self, content: str):
-        self.messages.append(content)
+    async def send(self, content: str | None = None, *, embed=None, embeds=None):
+        if content is not None:
+            self.messages.append(content)
+        if embed is not None:
+            self.embeds.append(embed)
+        if embeds is not None:
+            self.embeds.extend(embeds)
 
 
 class TestTvCommandDispatch(unittest.IsolatedAsyncioTestCase):
+    async def test_help_command_sends_formatted_embed(self):
+        ctx = FakeCtx()
+
+        await discord_media.help_command.callback(ctx)
+
+        self.assertEqual(len(ctx.embeds), 1)
+        emb = ctx.embeds[0]
+        self.assertIn("Commands", emb.title)
+        self.assertIn("tv ", emb.fields[0].value)
+        self.assertIn("tvadd", emb.fields[0].value)
+        self.assertIn("tvsearch", emb.fields[0].value)
+        self.assertEqual(emb.fields[2].name, "Other")
+        self.assertIn("help", emb.fields[2].value)
+
     async def test_tv_command_no_arg_calls_download_queue(self):
         ctx = FakeCtx()
         with (
