@@ -248,7 +248,8 @@ async def tv_command(ctx: commands.Context, *, arg: str | None = None) -> None:
         parts = arg.split()
         i = 0
         while i < len(parts):
-            token = parts[i]
+            raw_token = parts[i]
+            token = raw_token.replace("—", "--").replace("–", "--")
             if token == "--limit":
                 if i + 1 >= len(parts) or not parts[i + 1].isdigit():
                     await ctx.send(usage)

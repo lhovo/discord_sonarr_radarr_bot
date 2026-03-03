@@ -64,7 +64,7 @@ logging:
 ## Commands
 
 - `!tv` - Show active Sonarr downloads
-- `!tv <query> [--N|--limit N]` - Search Sonarr series (default 5 results, set `N` from 1 to 20, e.g. `--15` or `--limit 15`)
+- `!tv <query> [--N|--limit N]` - Search Sonarr series (default 5 results, set `N` from 1 to 20, e.g. `--15`; em-dash variants are also accepted)
 - `!tv <tvdbId>` - Show per-season status for a series
 - `!tvadd <tvdbId>` - Add series to Sonarr
 - `!tvsearch <tvdbId> s<season>e<episode>` - Trigger Sonarr search for one episode (example: `!tvsearch 12345 s1e2`)

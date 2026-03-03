@@ -97,6 +97,13 @@ class TestTvCommandDispatch(unittest.IsolatedAsyncioTestCase):
 
             lookup_mock.assert_awaited_once_with(ctx, "the office", limit=20)
 
+    async def test_tv_command_em_dash_limit_syntax_calls_tv_lookup(self):
+        ctx = FakeCtx()
+        with patch.object(discord_media.sonarr, "tv_lookup", new=AsyncMock()) as lookup_mock:
+            await discord_media.tv_command.callback(ctx, arg="the office —limit 7")
+
+            lookup_mock.assert_awaited_once_with(ctx, "the office", limit=7)
+
     async def test_tv_command_with_only_limit_flag_sends_usage(self):
         ctx = FakeCtx()
         with patch.object(discord_media.sonarr, "tv_lookup", new=AsyncMock()) as lookup_mock:
