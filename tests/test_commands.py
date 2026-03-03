@@ -52,9 +52,47 @@ class TestTvCommandDispatch(unittest.IsolatedAsyncioTestCase):
         ):
             await discord_media.tv_command.callback(ctx, arg="the office")
 
-            lookup_mock.assert_awaited_once_with(ctx, "the office")
+            lookup_mock.assert_awaited_once_with(ctx, "the office", limit=5)
             queue_mock.assert_not_awaited()
             show_mock.assert_not_awaited()
+
+    async def test_tv_command_text_arg_with_inline_limit_calls_tv_lookup(self):
+        ctx = FakeCtx()
+        with (
+            patch.object(discord_media.sonarr, "tv_download_queue", new=AsyncMock()) as queue_mock,
+            patch.object(discord_media.sonarr, "tv_show", new=AsyncMock()) as show_mock,
+            patch.object(discord_media.sonarr, "tv_lookup", new=AsyncMock()) as lookup_mock,
+        ):
+            await discord_media.tv_command.callback(ctx, arg="the office --15")
+
+            lookup_mock.assert_awaited_once_with(ctx, "the office", limit=15)
+            queue_mock.assert_not_awaited()
+            show_mock.assert_not_awaited()
+
+    async def test_tv_command_text_arg_with_long_limit_flag_calls_tv_lookup(self):
+        ctx = FakeCtx()
+        with patch.object(discord_media.sonarr, "tv_lookup", new=AsyncMock()) as lookup_mock:
+            await discord_media.tv_command.callback(ctx, arg="the office --limit 20")
+
+            lookup_mock.assert_awaited_once_with(ctx, "the office", limit=20)
+
+    async def test_tv_command_with_only_limit_flag_sends_usage(self):
+        ctx = FakeCtx()
+        with patch.object(discord_media.sonarr, "tv_lookup", new=AsyncMock()) as lookup_mock:
+            await discord_media.tv_command.callback(ctx, arg="--limit 10")
+
+            self.assertEqual(len(ctx.messages), 1)
+            self.assertIn("!tv <query> [--N|--limit N]", ctx.messages[0])
+            lookup_mock.assert_not_awaited()
+
+    async def test_tv_command_invalid_limit_range_sends_error(self):
+        ctx = FakeCtx()
+        with patch.object(discord_media.sonarr, "tv_lookup", new=AsyncMock()) as lookup_mock:
+            await discord_media.tv_command.callback(ctx, arg="the office --21")
+
+            self.assertEqual(len(ctx.messages), 1)
+            self.assertIn("between 1 and 20", ctx.messages[0])
+            lookup_mock.assert_not_awaited()
 
     async def test_tv_search_command_valid_ref_dispatches_to_sonarr(self):
         ctx = FakeCtx()

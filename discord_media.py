@@ -172,11 +172,11 @@ def _restrict_channels():
 
 @bot.command(
     name="tv",
-    help="!tv [search query | tvdbId]\nShow series information per season, including downloads in progress.",
+    help="!tv [search query|tvdbId] [--N|--limit N]\nSearch defaults to 5 results; set N from 1 to 20.",
 )
 @_restrict_channels()
 async def tv_command(ctx: commands.Context, *, arg: str | None = None) -> None:
-    """Search for TV shows in Sonarr: `!tv [search query | tvdbId]`.
+    """Search for TV shows in Sonarr: `!tv [search query|tvdbId] [--N|--limit N]`.
     If no query is provided, shows current Sonarr queue for active downloads.
     """
     if not arg:
@@ -184,7 +184,36 @@ async def tv_command(ctx: commands.Context, *, arg: str | None = None) -> None:
     elif arg.isdigit():
         await sonarr.tv_show(ctx, int(arg))
     else:
-        await sonarr.tv_lookup(ctx, arg)
+        usage = "Usage: `!tv <query> [--N|--limit N]` where N is 1-20"
+        search_limit = 5
+        query_parts: list[str] = []
+        parts = arg.split()
+        i = 0
+        while i < len(parts):
+            token = parts[i]
+            if token == "--limit":
+                if i + 1 >= len(parts) or not parts[i + 1].isdigit():
+                    await ctx.send(usage)
+                    return
+                search_limit = int(parts[i + 1])
+                i += 2
+                continue
+            if re.fullmatch(r"--\d{1,2}", token):
+                search_limit = int(token[2:])
+                i += 1
+                continue
+            query_parts.append(token)
+            i += 1
+
+        if search_limit < 1 or search_limit > 20:
+            await ctx.send("Search limit must be between 1 and 20.")
+            return
+
+        query = " ".join(query_parts).strip()
+        if not query:
+            await ctx.send(usage)
+            return
+        await sonarr.tv_lookup(ctx, query, limit=search_limit)
 
 
 @bot.command(name="tvadd", help="!tvadd <tvdbId>\nAdd a TV show using TVDB ID")

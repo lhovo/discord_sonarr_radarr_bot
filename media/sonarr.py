@@ -179,7 +179,7 @@ class SonarrClient(ArrClient):
             download_embeds.append(emb)
         await self._send_embeds_in_batches(ctx, download_embeds)
 
-    async def tv_lookup(self, ctx: commands.Context, query: str):
+    async def tv_lookup(self, ctx: commands.Context, query: str, limit: int = 5):
         results = await self.lookup(query)
         if isinstance(results, WebRuntimeError):
             self.log.error("Sonarr search failed: %s", results.message)
@@ -201,8 +201,9 @@ class SonarrClient(ArrClient):
                     existing_tvdb_ids.add(tvdb_id)
 
         search_embeds: list[Embed] = []
+        limit = max(1, min(limit, 20))
         results.sort(key=lambda r: r.get("year") or 0, reverse=True)
-        for result in results[:20]:
+        for result in results[:limit]:
             title = result.get("title", "Untitled")
             year = result.get("year", "?")
             tvdb_id = result.get("tvdbId", "-")
