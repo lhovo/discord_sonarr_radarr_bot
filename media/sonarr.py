@@ -191,14 +191,14 @@ class SonarrClient(ArrClient):
             return
 
         existing_series = await self.get("/api/v3/series")
-        existing_tvdb_ids: set[int] = set()
+        existing_series_by_tvdb: dict[int, dict[str, Any]] = {}
         if isinstance(existing_series, WebRuntimeError):
             self.log.warning("Failed to fetch existing Sonarr series for lookup coloring: %s", existing_series.message)
         else:
             for series in existing_series:
                 tvdb_id = series.get("tvdbId")
                 if isinstance(tvdb_id, int):
-                    existing_tvdb_ids.add(tvdb_id)
+                    existing_series_by_tvdb[tvdb_id] = series
 
         search_embeds: list[Embed] = []
         limit = max(1, min(limit, 20))
@@ -210,7 +210,12 @@ class SonarrClient(ArrClient):
             status = result.get("status", "-")
             overview = result.get("overview", "-")
             title_slug = result.get("titleSlug", "-")
-            is_added = isinstance(tvdb_id, int) and tvdb_id in existing_tvdb_ids
+            existing = existing_series_by_tvdb.get(tvdb_id) if isinstance(tvdb_id, int) else None
+            is_added = existing is not None
+            if not is_added:
+                monitored_status = "Not Added"
+            else:
+                monitored_status = "Monitored" if bool(existing.get("monitored")) else "Unmonitored"
 
             emb = Embed(
                 title=f"{title} ({year})",
@@ -219,6 +224,7 @@ class SonarrClient(ArrClient):
             )
             emb.add_field(name="TVDB", value=f"`{str(tvdb_id)}`", inline=False)
             emb.add_field(name="Status", value=str(status))
+            emb.add_field(name="Monitoring", value=monitored_status)
             emb.add_field(name="Title Slug", value=title_slug, inline=False)
             if result.get("remotePoster"):
                 emb.set_thumbnail(url=result.get("remotePoster"))
@@ -243,7 +249,8 @@ class SonarrClient(ArrClient):
 
         queue_items = await self.queue()
 
-        msg_lines = [f"**{series['title']}**"]
+        monitored_status = "Monitored" if bool(series.get("monitored")) else "Unmonitored"
+        msg_lines = [f"**{series['title']}**", f"{monitored_status}"]
         sorted_eps = sorted(
             episodes,
             key=lambda ep: (

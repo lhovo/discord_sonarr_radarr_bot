@@ -19,7 +19,7 @@ class SpySonarrClient(SonarrClient):
         self.get_episodes_called = False
 
     async def get_series(self, tvdb_id: int) -> dict[str, Any] | None:
-        return {"id": 99, "title": "My Show", "tvdbId": tvdb_id}
+        return {"id": 99, "title": "My Show", "tvdbId": tvdb_id, "monitored": True}
 
     async def get_episodes(self, series_id: int) -> list[dict[str, Any]] | WebRuntimeError:
         self.get_episodes_called = True
@@ -51,6 +51,7 @@ class TestSonarrTvShow(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(ctx.messages), 1)
         msg = ctx.messages[0]
         self.assertIn("My Show", msg)
+        self.assertIn("Monitored", msg)
         self.assertIn("Season 1: 1/2 downloaded", msg)
         self.assertNotIn("S01E01 Pilot", msg)
         self.assertIn("S01E02 Next Episode", msg)
@@ -130,7 +131,7 @@ class SpyTvLookupSonarr(SonarrClient):
 
     async def get(self, path: str, *, params: dict[str, Any] | None = None) -> Any | WebRuntimeError:
         if path == "/api/v3/series":
-            return [{"tvdbId": 111}]
+            return [{"tvdbId": 111, "monitored": False}]
         return WebRuntimeError("sonarr GET", "unexpected path", 500)
 
     async def _send_embeds_in_batches(self, ctx, embeds, batch_size: int = 10) -> None:
@@ -148,3 +149,11 @@ class TestSonarrTvLookup(unittest.IsolatedAsyncioTestCase):
         color_by_title = {embed.title: embed.color.value for embed in client.sent_embeds}
         self.assertEqual(color_by_title["Added Show (2020)"], 0x2ECC71)
         self.assertEqual(color_by_title["Missing Show (2019)"], 0x9B59B6)
+
+        monitoring_by_title: dict[str, str] = {}
+        for embed in client.sent_embeds:
+            monitoring_field = next((field for field in embed.fields if field.name == "Monitoring"), None)
+            assert monitoring_field is not None
+            monitoring_by_title[embed.title] = str(monitoring_field.value)
+        self.assertEqual(monitoring_by_title["Added Show (2020)"], "Unmonitored")
+        self.assertEqual(monitoring_by_title["Missing Show (2019)"], "Not Added")

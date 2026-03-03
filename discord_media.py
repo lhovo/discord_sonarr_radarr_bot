@@ -294,7 +294,8 @@ async def tv_search_command(ctx: commands.Context, tvdb_id: int, episode_ref: st
 
     season = int(match.group(1))
     episode = int(match.group(2))
-    await sonarr.search_episode(ctx, tvdb_id, season, episode)
+    if await sonarr.search_episode(ctx, tvdb_id, season, episode):
+        web_hook_server.mark_recently_added("tv", tvdb_id)
 
 
 @bot.command(

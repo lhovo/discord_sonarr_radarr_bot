@@ -31,12 +31,12 @@ class TestTvCommandDispatch(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(len(ctx.embeds), 1)
         emb = ctx.embeds[0]
+        field_by_name = {field.name: field.value for field in emb.fields}
         self.assertIn("Commands", emb.title)
-        self.assertIn("tv ", emb.fields[0].value)
-        self.assertIn("tvadd", emb.fields[0].value)
-        self.assertIn("tvsearch", emb.fields[0].value)
-        self.assertEqual(emb.fields[2].name, "Other")
-        self.assertIn("help", emb.fields[2].value)
+        self.assertIn("tv ", field_by_name["TV (Sonarr)"])
+        self.assertIn("tvadd", field_by_name["TV (Sonarr)"])
+        self.assertIn("tvsearch", field_by_name["TV (Sonarr)"])
+        self.assertIn("help", field_by_name[""])
 
     async def test_tv_command_no_arg_calls_download_queue(self):
         ctx = FakeCtx()
@@ -117,9 +117,31 @@ class TestTvCommandDispatch(unittest.IsolatedAsyncioTestCase):
 
     async def test_tv_search_command_valid_ref_dispatches_to_sonarr(self):
         ctx = FakeCtx()
-        with patch.object(discord_media.sonarr, "search_episode", new=AsyncMock()) as search_mock:
+        with (
+            patch.object(
+                discord_media.sonarr,
+                "search_episode",
+                new=AsyncMock(return_value=True),
+            ) as search_mock,
+            patch.object(discord_media.web_hook_server, "mark_recently_added") as mark_recent_mock,
+        ):
             await discord_media.tv_search_command.callback(ctx, 12345, "s2e8")
             search_mock.assert_awaited_once_with(ctx, 12345, 2, 8)
+            mark_recent_mock.assert_called_once_with("tv", 12345)
+
+    async def test_tv_search_command_does_not_mark_recent_on_failed_dispatch(self):
+        ctx = FakeCtx()
+        with (
+            patch.object(
+                discord_media.sonarr,
+                "search_episode",
+                new=AsyncMock(return_value=False),
+            ) as search_mock,
+            patch.object(discord_media.web_hook_server, "mark_recently_added") as mark_recent_mock,
+        ):
+            await discord_media.tv_search_command.callback(ctx, 12345, "s2e8")
+            search_mock.assert_awaited_once_with(ctx, 12345, 2, 8)
+            mark_recent_mock.assert_not_called()
 
     async def test_tv_search_command_invalid_ref_sends_usage(self):
         ctx = FakeCtx()
