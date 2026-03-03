@@ -239,18 +239,28 @@ class SonarrClient(ArrClient):
                 int(ep.get("episodeNumber", 0)),
             ),
         )
-        current_season: int | None = None
+        season_stats: dict[int, dict[str, int]] = {}
+        season_missing: dict[int, list[str]] = {}
         for ep in sorted_eps:
             season = int(ep.get("seasonNumber", 0))
             ep_num = int(ep.get("episodeNumber", 0))
             title = ep.get("title", "Untitled")
             downloaded = bool(ep.get("hasFile"))
-            if season != current_season:
-                msg_lines.append("")
-                msg_lines.append(f"Season {season}")
-                current_season = season
-            status = "Downloaded" if downloaded else "Missing"
-            msg_lines.append(f"S{season:02}E{ep_num:02} {title} - {status}")
+
+            stats = season_stats.setdefault(season, {"total": 0, "downloaded": 0})
+            stats["total"] += 1
+            if downloaded:
+                stats["downloaded"] += 1
+            else:
+                season_missing.setdefault(season, []).append(f"S{season:02}E{ep_num:02} {title}")
+
+        for season in sorted(season_stats):
+            stats = season_stats[season]
+            msg_lines.append("")
+            msg_lines.append(f"Season {season}: {stats['downloaded']}/{stats['total']} downloaded")
+
+            missing_eps = season_missing.get(season, [])
+            msg_lines.extend(missing_eps)
 
         if isinstance(queue_items, WebRuntimeError):
             msg_lines.append(f"⚠️ Warning: failed to fetch Sonarr queue: {queue_items.message}")
