@@ -27,6 +27,12 @@ class WebServer:
         self.WEB_PORT = int(webhook_cfg.get("port", 5000))
         self.WEB_SECRET = webhook_cfg.get("secret", None)
         self.RECENT_TTL = webhook_cfg.get("recent_ttl_seconds", 600)
+        self.SONARR_DOWNLOAD_DEBOUNCE_S = float(
+            webhook_cfg.get("sonarr_download_debounce_seconds", 20)
+        )
+        self.SONARR_DOWNLOAD_MAX_DELAY_S = float(
+            webhook_cfg.get("sonarr_download_max_delay_seconds", 60)
+        )
 
         self._web_app = web.Application()
         self._web_app.router.add_post("/webhook", self.handle_event)
@@ -39,9 +45,13 @@ class WebServer:
         self.site: web.TCPSite | None = None
         self.event_cache: dict[str, float] = {}
         self.event_queue: deque[str] = deque()
+        self.pending_sonarr_download_events: deque[str] = deque()
+        self.pending_sonarr_download_first_at: float | None = None
+        self.pending_sonarr_download_last_at: float | None = None
         self.log = logging.getLogger("WebServer")
 
     async def schedule_send(self) -> Embed | None:
+        self._flush_due_sonarr_download_events()
         if not self.event_queue:
             return None
 
@@ -59,6 +69,35 @@ class WebServer:
 
     def _now(self) -> float:
         return asyncio.get_event_loop().time()
+
+    def _enqueue_sonarr_download_event(self, event_line: str) -> None:
+        now = self._now()
+        if not self.pending_sonarr_download_events:
+            self.pending_sonarr_download_first_at = now
+        self.pending_sonarr_download_last_at = now
+        self.pending_sonarr_download_events.append(event_line)
+
+    def _flush_due_sonarr_download_events(self) -> None:
+        if not self.pending_sonarr_download_events:
+            return
+
+        now = self._now()
+        if self.pending_sonarr_download_first_at is None or self.pending_sonarr_download_last_at is None:
+            while self.pending_sonarr_download_events:
+                self.event_queue.append(self.pending_sonarr_download_events.popleft())
+            return
+
+        due_at = min(
+            self.pending_sonarr_download_last_at + self.SONARR_DOWNLOAD_DEBOUNCE_S,
+            self.pending_sonarr_download_first_at + self.SONARR_DOWNLOAD_MAX_DELAY_S,
+        )
+        if now < due_at:
+            return
+
+        while self.pending_sonarr_download_events:
+            self.event_queue.append(self.pending_sonarr_download_events.popleft())
+        self.pending_sonarr_download_first_at = None
+        self.pending_sonarr_download_last_at = None
 
     async def start(self) -> None:
         if self.runner is not None:
@@ -160,7 +199,10 @@ class WebServer:
             cache_key = f"{series}-S{season_num:02}E{episode_num:02}-{status}"
             self.event_cache[cache_key] = self._now()
             new_sonarr_event = f"📺 **{series}** - S{season_num:02}E{episode_num:02} → {status}"
-            self.event_queue.append(new_sonarr_event)
+            if str(status).lower() == "download":
+                self._enqueue_sonarr_download_event(new_sonarr_event)
+            else:
+                self.event_queue.append(new_sonarr_event)
             self.log.info("Adding event: %s", new_sonarr_event)
 
         if tmdb_id is not None:

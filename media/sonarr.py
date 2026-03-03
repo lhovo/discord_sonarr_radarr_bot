@@ -190,6 +190,16 @@ class SonarrClient(ArrClient):
             await ctx.send(f"❌ No results for `{query}`")
             return
 
+        existing_series = await self.get("/api/v3/series")
+        existing_tvdb_ids: set[int] = set()
+        if isinstance(existing_series, WebRuntimeError):
+            self.log.warning("Failed to fetch existing Sonarr series for lookup coloring: %s", existing_series.message)
+        else:
+            for series in existing_series:
+                tvdb_id = series.get("tvdbId")
+                if isinstance(tvdb_id, int):
+                    existing_tvdb_ids.add(tvdb_id)
+
         search_embeds: list[Embed] = []
         results.sort(key=lambda r: r.get("year") or 0, reverse=True)
         for result in results[:20]:
@@ -199,11 +209,12 @@ class SonarrClient(ArrClient):
             status = result.get("status", "-")
             overview = result.get("overview", "-")
             title_slug = result.get("titleSlug", "-")
+            is_added = isinstance(tvdb_id, int) and tvdb_id in existing_tvdb_ids
 
             emb = Embed(
                 title=f"{title} ({year})",
                 description=overview[:1000],
-                color=0x9B59B6,
+                color=0x2ECC71 if is_added else 0x9B59B6,
             )
             emb.add_field(name="TVDB", value=f"`{str(tvdb_id)}`", inline=False)
             emb.add_field(name="Status", value=str(status))

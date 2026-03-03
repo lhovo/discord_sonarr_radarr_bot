@@ -1,0 +1,16 @@
+discord:
+  token: "TEST_TOKEN"
+  prefix: "!"
+  restricted_channels:
+    - 1
+
+sonarr: {}
+radarr: {}
+
+webhook:
+  host: "127.0.0.1"
+  port: 5000
+
+logging:
+  level: "CRITICAL"
+  file: "/tmp/discord-media-test.log"

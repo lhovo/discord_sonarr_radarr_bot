@@ -51,9 +51,9 @@ class TestSonarrTvShow(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(ctx.messages), 1)
         msg = ctx.messages[0]
         self.assertIn("My Show", msg)
-        self.assertIn("Season 1", msg)
-        self.assertIn("S01E01 Pilot - Downloaded", msg)
-        self.assertIn("S01E02 Next Episode - Missing", msg)
+        self.assertIn("Season 1: 1/2 downloaded", msg)
+        self.assertNotIn("S01E01 Pilot", msg)
+        self.assertIn("S01E02 Next Episode", msg)
         self.assertIn("S01E02 Next Episode (75.0%)", msg)
 
 
@@ -101,3 +101,50 @@ class TestSonarrEpisodeSearch(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(client.post_calls, [])
         self.assertEqual(len(ctx.messages), 1)
         self.assertIn("Could not find", ctx.messages[0])
+
+
+class SpyTvLookupSonarr(SonarrClient):
+    def __init__(self):
+        super().__init__({}, "sonarr")
+        self.sent_embeds = []
+
+    async def lookup(self, term: str) -> list[dict[str, Any]] | WebRuntimeError:
+        return [
+            {
+                "title": "Added Show",
+                "year": 2020,
+                "tvdbId": 111,
+                "status": "continuing",
+                "overview": "Added overview",
+                "titleSlug": "added-show",
+            },
+            {
+                "title": "Missing Show",
+                "year": 2019,
+                "tvdbId": 222,
+                "status": "ended",
+                "overview": "Missing overview",
+                "titleSlug": "missing-show",
+            },
+        ]
+
+    async def get(self, path: str, *, params: dict[str, Any] | None = None) -> Any | WebRuntimeError:
+        if path == "/api/v3/series":
+            return [{"tvdbId": 111}]
+        return WebRuntimeError("sonarr GET", "unexpected path", 500)
+
+    async def _send_embeds_in_batches(self, ctx, embeds, batch_size: int = 10) -> None:
+        self.sent_embeds = embeds
+
+
+class TestSonarrTvLookup(unittest.IsolatedAsyncioTestCase):
+    async def test_tv_lookup_colors_added_series_green(self):
+        client = SpyTvLookupSonarr()
+        ctx = FakeCtx()
+
+        await client.tv_lookup(ctx, "show")
+
+        self.assertEqual(len(client.sent_embeds), 2)
+        color_by_title = {embed.title: embed.color.value for embed in client.sent_embeds}
+        self.assertEqual(color_by_title["Added Show (2020)"], 0x2ECC71)
+        self.assertEqual(color_by_title["Missing Show (2019)"], 0x9B59B6)

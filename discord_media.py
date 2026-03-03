@@ -35,6 +35,7 @@ logging:
 
 import asyncio
 import logging
+import os
 import re
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -49,7 +50,7 @@ from media.radarr import RadarrClient
 from media.sonarr import SonarrClient
 
 BASE_DIR = Path(__file__).resolve().parent
-CONFIG_PATH = BASE_DIR / "config.yaml"
+CONFIG_PATH = Path(os.environ.get("DISCORD_MEDIA_CONFIG_PATH", BASE_DIR / "config.yaml"))
 
 DEFAULT_LOG_FILE = "/app/logs/bot.log"
 DEFAULT_LOG_LEVEL = "INFO"
@@ -105,7 +106,7 @@ sonarr = SonarrClient(sonarr_cfg, "sonarr")
 radarr = RadarrClient(radarr_cfg, "radarr")
 web_hook_server = WebServer(CONFIG)
 
-BATCH_DEBOUNCE_S = 4.0
+BATCH_DEBOUNCE_S = 5.0
 
 
 async def _resolve_primary_channel() -> discord.TextChannel | None:

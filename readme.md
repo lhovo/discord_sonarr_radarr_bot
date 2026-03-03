@@ -53,6 +53,8 @@ webhook:
   port: 5000
   secret: ""
   recent_ttl_seconds: 600
+  sonarr_download_debounce_seconds: 20
+  sonarr_download_max_delay_seconds: 60
 
 logging:
   level: "INFO"
@@ -65,6 +67,7 @@ logging:
 - `!tv <query>` - Search Sonarr series
 - `!tv <tvdbId>` - Show per-season status for a series
 - `!tvadd <tvdbId>` - Add series to Sonarr
+- `!tvsearch <tvdbId> s<season>e<episode>` - Trigger Sonarr search for one episode (example: `!tvsearch 12345 s1e2`)
 - `!movie` - Show active Radarr downloads
 - `!movie <query>` - Search Radarr movies
 - `!movieadd <tmdbId>` - Add movie to Radarr

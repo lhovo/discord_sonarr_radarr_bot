@@ -7,7 +7,7 @@
 #   discord-media-bot
 services:
 
-  arr-dev:
+  discord-media-bot:
     build:
       context: .
     container_name: discord-media-bot
