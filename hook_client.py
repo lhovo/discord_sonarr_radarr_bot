@@ -195,10 +195,12 @@ class WebServer:
             episode = episode_list[0]
             season_num = episode.get("seasonNumber")
             episode_num = episode.get("episodeNumber")
+            episode_title = episode.get("title")
 
             cache_key = f"{series}-S{season_num:02}E{episode_num:02}-{status}"
             self.event_cache[cache_key] = self._now()
-            new_sonarr_event = f"📺 **{series}** - S{season_num:02}E{episode_num:02} → {status}"
+            display_status = episode_title if str(status).lower() == "download" and episode_title else status
+            new_sonarr_event = f"📺 **{series}** - S{season_num:02}E{episode_num:02} → {display_status}"
             if str(status).lower() == "download":
                 self._enqueue_sonarr_download_event(new_sonarr_event)
             else:

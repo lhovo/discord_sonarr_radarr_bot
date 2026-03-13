@@ -13,7 +13,13 @@ class FakeRequest:
         return self._payload
 
 
-def _sonarr_payload(series_title: str, season: int, episode: int, event_type: str = "Download") -> dict[str, str | dict[str, str | int] | list[dict[str, int]]]:
+def _sonarr_payload(
+    series_title: str,
+    season: int,
+    episode: int,
+    event_type: str = "Download",
+    episode_title: str | None = None,
+) -> dict[str, str | dict[str, str | int] | list[dict[str, str | int]]]:
     return {
         "eventType": event_type,
         "series": {
@@ -24,6 +30,7 @@ def _sonarr_payload(series_title: str, season: int, episode: int, event_type: st
             {
                 "seasonNumber": season,
                 "episodeNumber": episode,
+                "title": episode_title,
             }
         ],
     }
@@ -72,3 +79,19 @@ class TestWebhookSonarrDebounce(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(embed)
         assert embed is not None
         self.assertEqual(embed.description.count("\n") + 1, 7)
+
+    async def test_sonarr_download_uses_episode_title_in_output(self):
+        server = WebServer({})
+
+        with patch.object(server, "_now", return_value=0.0):
+            await server.handle_event(
+                FakeRequest(_sonarr_payload("Show C", 1, 3, episode_title="The Heist"))
+            )
+
+        with patch.object(server, "_now", return_value=20.0):
+            embed = await server.schedule_send()
+
+        self.assertIsNotNone(embed)
+        assert embed is not None
+        self.assertIn("The Heist", embed.description)
+        self.assertNotIn("→ Download", embed.description)
