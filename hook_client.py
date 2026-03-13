@@ -1,7 +1,7 @@
 ﻿import logging
 import json
 import asyncio
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, TypedDict, cast
 from aiohttp import web
 from collections import deque
 from discord import Embed, Color
@@ -191,21 +191,21 @@ class WebServer:
                 return web.Response(text="")
 
             series = event_data.get("series", {}).get("title")
-            episode_list: list[dict[str, str | int]] = event_data.get("episodes") or [{}]
-            episode = episode_list[0]
-            season_num = episode.get("seasonNumber")
-            episode_num = episode.get("episodeNumber")
-            episode_title = episode.get("title")
+            episode_list = cast(list[dict[str, str | int]], event_data.get("episodes") or [{}])
+            for episode in episode_list:
+                season_num = episode.get("seasonNumber")
+                episode_num = episode.get("episodeNumber")
+                episode_title = episode.get("title")
 
-            cache_key = f"{series}-S{season_num:02}E{episode_num:02}-{status}"
-            self.event_cache[cache_key] = self._now()
-            display_status = episode_title if str(status).lower() == "download" and episode_title else status
-            new_sonarr_event = f"📺 **{series}** - S{season_num:02}E{episode_num:02} → {display_status}"
-            if str(status).lower() == "download":
-                self._enqueue_sonarr_download_event(new_sonarr_event)
-            else:
-                self.event_queue.append(new_sonarr_event)
-            self.log.info("Adding event: %s", new_sonarr_event)
+                cache_key = f"{series}-S{season_num:02}E{episode_num:02}-{status}"
+                self.event_cache[cache_key] = self._now()
+                display_status = episode_title if str(status).lower() == "download" and episode_title else status
+                new_sonarr_event = f"📺 **{series}** - S{season_num:02}E{episode_num:02} → {display_status}"
+                if str(status).lower() == "download":
+                    self._enqueue_sonarr_download_event(new_sonarr_event)
+                else:
+                    self.event_queue.append(new_sonarr_event)
+                self.log.info("Adding event: %s", new_sonarr_event)
 
         if tmdb_id is not None:
             if self.check_recent_list(status, "movie", tmdb_id):
